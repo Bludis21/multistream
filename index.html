@@ -165,6 +165,33 @@
       user-select: none;
       border-radius: 10px 10px 0 0;
     }
+
+    .title-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 30px;
+      padding: 0 12px;
+      background: rgba(79,195,247,0.08);
+      font-weight: bold;
+      font-size: 1rem;
+      color: #4fc3f7;
+      border-radius: 10px 10px 0 0;
+      cursor: default;
+    }
+
+    #stream-counter {
+      position: fixed;
+      top: 16px;
+      right: 32px;
+      background: rgba(44,62,80,0.95);
+      color: #4fc3f7;
+      font-weight: bold;
+      font-size: 1.1rem;
+      padding: 8px 18px;
+      border-radius: 8px;
+      box-shadow: 0 2px 12px #0004;
+    }
   </style>
 </head>
 <body>
@@ -219,17 +246,63 @@
       screen.style.left = x + "px";
       screen.style.top = y + "px";
 
+      // Pasek tytułu z nazwą streama
+      const titleBar = document.createElement("div");
+      titleBar.className = "title-bar";
+      titleBar.style.display = "flex";
+      titleBar.style.alignItems = "center";
+      titleBar.style.justifyContent = "space-between";
+      titleBar.style.height = "30px";
+      titleBar.style.padding = "0 12px";
+      titleBar.style.background = "rgba(79,195,247,0.08)";
+      titleBar.style.fontWeight = "bold";
+      titleBar.style.fontSize = "1rem";
+      titleBar.style.color = "#4fc3f7";
+      titleBar.style.borderRadius = "10px 10px 0 0";
+      titleBar.style.cursor = "default";
+      // Wyciągnij nazwę streama
+      let streamName = "Stream";
+      if (embedUrl.includes("youtube")) {
+        const match = urlInput.value.match(/[?&]v=([^&]+)/) || urlInput.value.match(/youtu.be\/(.+)/);
+        streamName = match ? match[1] : "YouTube";
+      } else if (embedUrl.includes("twitch")) {
+        const match = urlInput.value.match(/twitch.tv\/([^/?]+)/);
+        streamName = match ? match[1] : "Twitch";
+      }
+      titleBar.textContent = streamName;
+
+      // Minimalizowanie okienka
+      const minimizeBtn = document.createElement("button");
+      minimizeBtn.innerHTML = "_";
+      minimizeBtn.title = "Minimalizuj";
+      minimizeBtn.style.background = "none";
+      minimizeBtn.style.border = "none";
+      minimizeBtn.style.color = "#4fc3f7";
+      minimizeBtn.style.fontSize = "1.2rem";
+      minimizeBtn.style.cursor = "pointer";
+      minimizeBtn.style.marginLeft = "8px";
+      minimizeBtn.onclick = (e) => {
+        e.stopPropagation();
+        iframe.style.display = iframe.style.display === "none" ? "block" : "none";
+        dragHandle.style.display = dragHandle.style.display === "none" ? "block" : "none";
+      };
+      titleBar.appendChild(minimizeBtn);
+
       const dragHandle = document.createElement("div");
       dragHandle.className = "drag-handle";
 
       const removeBtn = document.createElement("button");
       removeBtn.className = "remove-btn";
       removeBtn.innerText = "×";
-      removeBtn.onclick = () => screen.remove();
+      removeBtn.onclick = () => {
+        screen.remove();
+        updateStreamCounter();
+      };
 
       const iframe = document.createElement("iframe");
       iframe.src = embedUrl;
 
+      screen.appendChild(titleBar);
       screen.appendChild(dragHandle);
       screen.appendChild(removeBtn);
       screen.appendChild(iframe);
@@ -237,6 +310,29 @@
 
       makeDraggable(screen, dragHandle);
       urlInput.value = '';
+      updateStreamCounter();
+    }
+
+    // Licznik aktywnych streamów
+    function updateStreamCounter() {
+      let counter = document.getElementById('stream-counter');
+      if (!counter) {
+        counter = document.createElement('div');
+        counter.id = 'stream-counter';
+        counter.style.position = 'fixed';
+        counter.style.top = '16px';
+        counter.style.right = '32px';
+        counter.style.background = 'rgba(44,62,80,0.95)';
+        counter.style.color = '#4fc3f7';
+        counter.style.fontWeight = 'bold';
+        counter.style.fontSize = '1.1rem';
+        counter.style.padding = '8px 18px';
+        counter.style.borderRadius = '8px';
+        counter.style.boxShadow = '0 2px 12px #0004';
+        document.body.appendChild(counter);
+      }
+      const count = document.querySelectorAll('.screen').length;
+      counter.textContent = `Aktywne streamy: ${count}`;
     }
 
     function findNonOverlappingPosition(width, height) {
@@ -281,6 +377,7 @@
     function makeDraggable(element, handle) {
       let offsetX = 0, offsetY = 0, startX = 0, startY = 0;
       let isDragging = false;
+      let mouseMoveHandler, mouseUpHandler;
 
       handle.addEventListener('mousedown', function(e) {
         e.preventDefault();
@@ -288,28 +385,38 @@
         startX = e.clientX;
         startY = e.clientY;
         const rect = element.getBoundingClientRect();
-        offsetX = startX - rect.left;
-        offsetY = startY - rect.top;
-        document.body.style.userSelect = 'none';
-      });
-
-      document.addEventListener('mousemove', function(e) {
-        if (!isDragging) return;
-        let x = e.clientX - offsetX;
-        let y = e.clientY - offsetY;
-        // Ogranicz przesuwanie do kontenera
         const container = document.getElementById('screens');
-        const maxX = container.clientWidth - element.offsetWidth;
-        const maxY = container.clientHeight - element.offsetHeight;
-        x = Math.max(0, Math.min(x, maxX));
-        y = Math.max(0, Math.min(y, maxY));
-        element.style.left = x + 'px';
-        element.style.top = y + 'px';
-      });
+        const containerRect = container.getBoundingClientRect();
+        offsetX = startX - rect.left + containerRect.left;
+        offsetY = startY - rect.top + containerRect.top;
+        document.body.style.userSelect = 'none';
 
-      document.addEventListener('mouseup', function() {
-        isDragging = false;
-        document.body.style.userSelect = '';
+        mouseMoveHandler = function(e) {
+          if (!isDragging) return;
+          const container = document.getElementById('screens');
+          const containerRect = container.getBoundingClientRect();
+          let x = e.clientX - offsetX + containerRect.left;
+          let y = e.clientY - offsetY + containerRect.top;
+          x = e.clientX - containerRect.left - (startX - rect.left);
+          y = e.clientY - containerRect.top - (startY - rect.top);
+          // Ogranicz przesuwanie do kontenera
+          const maxX = container.clientWidth - element.offsetWidth;
+          const maxY = container.clientHeight - element.offsetHeight;
+          x = Math.max(0, Math.min(x, maxX));
+          y = Math.max(0, Math.min(y, maxY));
+          element.style.left = x + 'px';
+          element.style.top = y + 'px';
+        };
+
+        mouseUpHandler = function() {
+          isDragging = false;
+          document.body.style.userSelect = '';
+          document.removeEventListener('mousemove', mouseMoveHandler);
+          document.removeEventListener('mouseup', mouseUpHandler);
+        };
+
+        document.addEventListener('mousemove', mouseMoveHandler);
+        document.addEventListener('mouseup', mouseUpHandler);
       });
     }
   </script>
