@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MultiStream Viewer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+      background: linear-gradient(135deg, #181c2b 0%, #232946 100%);
+      color: #f4f4f4;
+      padding: 2rem 0;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 2rem;
+      color: #4fc3f7;
+      text-align: center;
+      letter-spacing: 2px;
+      text-shadow: 0 2px 12px #222b, 0 1px 0 #222b;
+    }
+
+    .input-group {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      margin: 0 auto 2rem auto;
+      max-width: 600px;
+      background: #232946;
+      border-radius: 12px;
+      box-shadow: 0 2px 16px #0004;
+      padding: 1rem 1.5rem;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 0.9rem 1.2rem;
+      font-size: 1.1rem;
+      border-radius: 8px;
+      background-color: #181c2b;
+      color: #fff;
+      border: 2px solid #4fc3f7;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      box-shadow: 0 1px 6px #0002;
+    }
+
+    input[type="text"]:focus {
+      border-color: #29b6f6;
+      box-shadow: 0 0 0 2px #4fc3f766;
+    }
+
+    button {
+      padding: 0.9rem 1.5rem;
+      font-size: 1.1rem;
+      background: linear-gradient(90deg, #4fc3f7 60%, #29b6f6 100%);
+      border: none;
+      border-radius: 8px;
+      color: #181c2b;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 2px 8px #29b6f633;
+      transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+    }
+
+    button:hover {
+      background: linear-gradient(90deg, #29b6f6 60%, #4fc3f7 100%);
+      box-shadow: 0 4px 16px #29b6f655;
+      transform: translateY(-2px) scale(1.04);
+    }
+
+    #screens {
+      position: relative;
+      width: 100%;
+      height: calc(100vh - 200px);
+      overflow: hidden;
+      border: 2px dashed #333;
+      /* Usunięto grid, wraca pozycjonowanie absolutne */
+      display: block;
+      min-height: unset;
+      max-width: unset;
+      background: none;
+      box-shadow: none;
+      border-radius: 0;
+      padding: 0;
+      margin: 0;
+    }
+
+    .screen {
+      position: absolute;
+      width: 400px;
+      height: 250px;
+      min-width: 200px;
+      min-height: 150px;
+      max-width: 90%;
+      max-height: 80%;
+      background: linear-gradient(120deg, #232946 60%, #181c2b 100%);
+      border-radius: 10px;
+      border: 2px solid #4fc3f7;
+      box-shadow: 0 2px 16px #29b6f633, 0 1.5px 0 #222b;
+      resize: both;
+      overflow: hidden;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      transition: box-shadow 0.2s, border-color 0.2s;
+    }
+
+    .screen:hover {
+      box-shadow: 0 6px 32px #29b6f655, 0 2px 0 #222b;
+      border-color: #29b6f6;
+    }
+
+    .screen iframe {
+      width: 100%;
+      height: 100%;
+      pointer-events: auto;
+      display: block;
+      border: none;
+      border-radius: 0 0 16px 16px;
+      background: #000;
+      flex: 1;
+    }
+
+    .remove-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: linear-gradient(135deg, #e53935 60%, #ff1744 100%);
+      border: none;
+      color: #fff;
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      font-size: 1.3rem;
+      cursor: pointer;
+      z-index: 10;
+      line-height: 1;
+      box-shadow: 0 2px 8px #e5393533;
+      transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .remove-btn:hover {
+      background: linear-gradient(135deg, #ff1744 60%, #e53935 100%);
+      box-shadow: 0 4px 16px #e5393555;
+      transform: scale(1.08);
+    }
+
+    .drag-handle {
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 30px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.05);
+      cursor: move;
+      z-index: 5;
+      user-select: none;
+      border-radius: 10px 10px 0 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎥 MultiStream Viewer</h1>
+  <div class="input-group">
+    <input type="text" id="streamUrl" placeholder="Wklej link do YouTube lub Twitch" />
+    <button onclick="addScreen()">Dodaj ekran</button>
+  </div>
+  <div id="screens"></div>
+
+  <script>
+    function sanitizeUrl(url) {
+      try {
+        const parsed = new URL(url);
+
+        if (parsed.hostname.includes("youtube.com")) {
+          const videoId = parsed.searchParams.get("v");
+          return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+        }
+
+        if (parsed.hostname.includes("youtu.be")) {
+          const videoId = parsed.pathname.slice(1);
+          return `https://www.youtube.com/embed/${videoId}`;
+        }
+
+        if (parsed.hostname.includes("twitch.tv")) {
+          const channel = parsed.pathname.split("/")[1];
+          // Automatycznie ustawiamy parent na aktualną domenę
+          let parent = window.location.hostname;
+          if (!parent || parent === "") parent = "localhost";
+          return `https://player.twitch.tv/?channel=${channel}&parent=${parent}&autoplay=true`;
+        }
+
+        alert("Nieobsługiwany link.");
+        return null;
+      } catch {
+        alert("Nieprawidłowy URL.");
+        return null;
+      }
+    }
+
+    function addScreen() {
+      const urlInput = document.getElementById("streamUrl");
+      const embedUrl = sanitizeUrl(urlInput.value.trim());
+      if (!embedUrl) return;
+
+      const screen = document.createElement("div");
+      screen.className = "screen";
+
+      // Znajdź niekolidującą pozycję
+      const { x, y } = findNonOverlappingPosition(400, 250);
+      screen.style.left = x + "px";
+      screen.style.top = y + "px";
+
+      const dragHandle = document.createElement("div");
+      dragHandle.className = "drag-handle";
+
+      const removeBtn = document.createElement("button");
+      removeBtn.className = "remove-btn";
+      removeBtn.innerText = "×";
+      removeBtn.onclick = () => screen.remove();
+
+      const iframe = document.createElement("iframe");
+      iframe.src = embedUrl;
+
+      screen.appendChild(dragHandle);
+      screen.appendChild(removeBtn);
+      screen.appendChild(iframe);
+      document.getElementById("screens").appendChild(screen);
+
+      makeDraggable(screen, dragHandle);
+      urlInput.value = '';
+    }
+
+    function findNonOverlappingPosition(width, height) {
+      const screens = document.querySelectorAll('.screen');
+      let x = 10, y = 10;
+      const step = 30;
+      const container = document.getElementById('screens');
+      const containerRect = container.getBoundingClientRect();
+
+      function isOverlapping(x, y) {
+        for (let screen of screens) {
+          const rect = screen.getBoundingClientRect();
+          const left = rect.left - containerRect.left;
+          const top = rect.top - containerRect.top;
+          if (
+            x < left + rect.width &&
+            x + width > left &&
+            y < top + rect.height &&
+            y + height > top
+          ) {
+            return true;
+          }
+        }
+        return false;
+      }
+
+      for (let i = 0; i < 100; i++) {
+        if (!isOverlapping(x, y) &&
+            x + width <= container.clientWidth &&
+            y + height <= container.clientHeight) {
+          return { x, y };
+        }
+        x += step;
+        y += step;
+        if (x + width > container.clientWidth) x = 10;
+        if (y + height > container.clientHeight) y = 10;
+      }
+
+      return { x: 10, y: 10 };
+    }
+  </script>
+</body>
+</html>
