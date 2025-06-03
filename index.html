@@ -277,6 +277,41 @@
 
       return { x: 10, y: 10 };
     }
+
+    function makeDraggable(element, handle) {
+      let offsetX = 0, offsetY = 0, startX = 0, startY = 0;
+      let isDragging = false;
+
+      handle.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        const rect = element.getBoundingClientRect();
+        offsetX = startX - rect.left;
+        offsetY = startY - rect.top;
+        document.body.style.userSelect = 'none';
+      });
+
+      document.addEventListener('mousemove', function(e) {
+        if (!isDragging) return;
+        let x = e.clientX - offsetX;
+        let y = e.clientY - offsetY;
+        // Ogranicz przesuwanie do kontenera
+        const container = document.getElementById('screens');
+        const maxX = container.clientWidth - element.offsetWidth;
+        const maxY = container.clientHeight - element.offsetHeight;
+        x = Math.max(0, Math.min(x, maxX));
+        y = Math.max(0, Math.min(y, maxY));
+        element.style.left = x + 'px';
+        element.style.top = y + 'px';
+      });
+
+      document.addEventListener('mouseup', function() {
+        isDragging = false;
+        document.body.style.userSelect = '';
+      });
+    }
   </script>
 </body>
 </html>
